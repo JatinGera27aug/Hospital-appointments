@@ -50,6 +50,14 @@ router.get('/missed/patient/:patientId', AppointmentController.getMissedAppointm
 // find slots
 router.get('/find-slots/:appointmentId', AppointmentController.FindSlotsforRescheduling);
 
+// reschedule request
+router.patch('/reschedule/:appointmentId', AppointmentController.Rescheduling);
+
+// get rescheduled of patient
+router.get('/rescheduled/patient/:patientId', AppointmentController.getRescheduledAppointmentsPat);
+
+// get rescheduled of patient
+router.get('/rescheduled/doctor/:doctorId', AppointmentController.getRescheduledAppointmentsDoc);
 
 
 

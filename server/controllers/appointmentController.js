@@ -859,10 +859,11 @@ class AppointmentController {
                                 // Use the next available day's information to calculate the next slot
                                 console.log(`Checking availability for day: ${doctorAvailabilityForNextDay.day}`);
                     
-                                const lastConfirmedSlotNextDay = findLastConfirmedSlotForDay(
-                                    doctorAvailabilityForNextDay,
-                                    scheduledDateTime
-                                );}}
+                                // const lastConfirmedSlotNextDay = findLastConfirmedSlotForDay(
+                                //     doctorAvailabilityForNextDay,
+                                //     scheduledDateTime
+                                // );
+                                }}
 
                         console.log('No available slots within the doctor\'s working hours.');
                         return res.status(400).json({ 
@@ -879,6 +880,141 @@ class AppointmentController {
                 res.status(500).json({ message: 'Error fetching slots', error: err.message });
             }
         }
+
+
+        // rescheduling 
+        static async Rescheduling(req,res) {
+                const appointmentId = req.params.appointmentId;
+                const newSlot = req.body;
+                console.log(appointmentId, newSlot)
+                try {
+                    const appointment = await AppointmentModel.findById(appointmentId);
+
+                    if (!appointment) {
+                        return { message: 'Appointment not found.', status: 'error' };
+                    }
+                    console.log(appointment);
+                    const { patientId, doctorId, status, duration } = appointment;
+                    // Check if the appointment status is 'missed'
+                    if (status !== 'missed') {
+                        return { message: 'Only missed appointments can be rescheduled.', status: 'error' };
+                    }
+
+
+                    const { startTime, date } = newSlot;
+                    // Compute endTime using startTime and duration
+                    const [startHour, startMinute] = startTime.split(':').map(Number);
+                    const totalMinutes = startHour * 60 + startMinute + duration;
+                    const endHour = Math.floor(totalMinutes / 60) % 24; // Ensure hours wrap around for a 24-hour clock
+                    const endMinute = totalMinutes % 60;
+                    const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+                                // Check for conflicting appointments for the patient
+                    const patientConflict = await AppointmentModel.findOne({
+                        patientId,
+                        date,
+                        status: { $ne: 'cancelled' },
+                        $or: [
+                            { time: { $lte: endTime, $gte: startTime } },
+                            { endTime: { $gte: startTime, $lte: endTime } }
+                        ]
+                    });
+
+                    if (patientConflict) {
+                        return { message: 'Conflict with another appointment for the patient.', status: 'conflict' };
+                    }
+
+                    // Check for conflicting appointments for the doctor
+                    const doctorConflict = await AppointmentModel.findOne({
+                        doctorId,
+                        date,
+                        status: { $in: ['confirmed', 'ongoing'] },
+                        $or: [
+                            { time: { $lte: endTime, $gte: startTime } },
+                            { endTime: { $gte: startTime, $lte: endTime } }
+                        ]
+                    });
+
+                    if (doctorConflict) {
+                        return { message: 'Conflict with another appointment for the doctor.', status: 'conflict' };
+                    }
+
+                    // Update the appointment with the new slot details
+                    appointment.time = startTime;
+                    appointment.endTime = endTime;
+                    appointment.date = date;
+                    appointment.status = 'rescheduled';
+
+                    await appointment.save();
+
+                    // sms logic
+
+                    return res.status(200).json({ message: 'Appointment rescheduled successfully.', status: 'success' });
+                } catch (error) {
+                    console.error('Error rescheduling appointment:', error);
+                    return res.status(500).json({ message: 'Error rescheduling appointment.', status: 'error' });
+                
+                }
+};
+
+    // get rescheduled appointment of a patient
+    static async getRescheduledAppointmentsPat(req, res) {
+        
+        try {
+            const patientId = req.params.patientId;
+            
+            const ispatient = await PatientModel.findById(patientId);
+            if (!ispatient) {
+                return res.status(404).json({ message: 'Patient not found.' });
+            }
+
+            const rescheduledAppointments = await AppointmentModel.find({
+                patient: patientId,
+                status: 'rescheduled',
+            })
+                .populate('patient', 'username email phone')
+                .populate('doctor', 'name specialization fees');
+    
+            if (!rescheduledAppointments.length) {
+                return res.status(404).json({ message: 'No rescheduled appointments found for this patient. He is not a CHILL GUY ' });
+            }
+    
+            res.status(200).json({ appointments: rescheduledAppointments });
+        } catch (err) {
+            console.error('Error fetching rescheduled appointments:', err.message);
+            res.status(500).json({ message: 'Error fetching rescheduled appointments for patient', error: err.message });
+        }
+    }
+
+
+    // // get rescheduled appointment of a doctor
+    static async getRescheduledAppointmentsDoc(req, res) {
+        
+        try {
+            const doctorId = req.params.doctorId;
+            
+            const isdoctor = await DoctorModel.findById(doctorId);
+            if (!isdoctor) {
+                return res.status(404).json({ message: 'Doctor not found.' });
+            }
+
+            const rescheduledAppointments = await AppointmentModel.find({
+                doctor: doctorId,
+                status: 'rescheduled',
+            })
+                .populate('patient', 'username email phone')
+                .populate('doctor', 'name specialization fees');
+    
+            if (!rescheduledAppointments.length) {
+                return res.status(404).json({ message: 'No rescheduled appointments found for this doctor. He is not a CHILL GUY ' });
+            }
+    
+            res.status(200).json({ appointments: rescheduledAppointments });
+        } catch (err) {
+            console.error('Error fetching rescheduled appointments:', err.message);
+            res.status(500).json({ message: 'Error fetching rescheduled appointments for doctor', error: err.message });
+        }
+    }
 
 
 }
