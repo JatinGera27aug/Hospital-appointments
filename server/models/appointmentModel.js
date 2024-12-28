@@ -23,6 +23,10 @@ const AppointmentSchema = new mongoose.Schema({
     type: Number, // in minutes
     required: true,
   },
+  endTime:{
+    type: String,
+    default: null
+  },
   mode_of_payment:{
     type: String,
     enum: ["cash", "card", "upi", "netbanking"],
@@ -40,5 +44,15 @@ const AppointmentSchema = new mongoose.Schema({
   },
 
 }, { timestamps: true });
+
+
+// Middleware to calculate endTime
+// AppointmentSchema.pre('save', function (next) {
+//   if (this.time && this.duration) {
+//       const appointmentStart = moment(this.time, 'HH:mm');
+//       this.endTime = appointmentStart.add(this.duration, 'minutes').format('HH:mm');
+//   }
+//   next();
+// });
 
 module.exports = mongoose.model("Appointment", AppointmentSchema);

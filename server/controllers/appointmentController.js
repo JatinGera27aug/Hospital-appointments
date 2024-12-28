@@ -1,106 +1,195 @@
 const AppointmentModel = require('../models/appointmentModel');
 const DoctorModel = require('../models/doctorModel');
 const PatientModel = require('../models/patientModel');
+// const {checkAndUpdateMissedAppointments} = require('../utils/checkAppointments');
 const moment = require('moment');
-const now = moment();
+// const now = moment();
 
 class AppointmentController {
+        
     static async MakeAppointment(req, res) {
-        const { doctorId:doctor, patientId:patient, date, time, duration, mode_of_payment} = req.body;
+        const { doctorId: doctor, patientId: patient, date, time, duration, mode_of_payment } = req.body;
         console.log(req.body);
-
-        try{
+    
+        try {
             if (!doctor || !patient || !date || !time || !duration || !mode_of_payment) {
-               
                 return res.status(400).json({ message: 'Please provide all required fields' });
             }
-            
-            // appointment time comparison
-            const today_date = new Date().toISOString().split('T')[0]; // get current date in YYYY-MM-DD format
+            const now = new Date(); // Current time
+            const currentDateTimeInIndia = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+            const currentDateTime = new Date(currentDateTimeInIndia); // Parsed back to a Date object for consistency
 
-            if (new Date(req.body.date) == today_date) {
-                const scheduled_time = moment(time, 'hh:mm'); // 10:00 
-                if (now.isAfter(scheduled_time)){
+            // Combine date and time for the appointment
+            const scheduledDateTime = new Date(`${date}T${time}:00`); // Ensure full ISO format
+
+            // Debugging logs for clarity
+            console.log("Now (Local):", now);
+            console.log("Current Date-Time in India:", currentDateTime);
+            console.log("Scheduled Date-Time:", scheduledDateTime);
+
+            // Check if the appointment is for today
+            const todayInIndia = currentDateTime.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' });
+            const scheduledDateInIndia = scheduledDateTime.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' });
+            const scheduledTime = new Date(`${date}T${time}`);
+
+            // Appointment logic
+            if (scheduledDateInIndia === todayInIndia) {
+                // If the appointment is for today, ensure the time is in the future
+                if (scheduledDateTime <= currentDateTime) {
                     console.log("4");
                     return res.status(400).json({ message: 'Appointment time must be in the future - time' });
-            }
-            }
-            else if (new Date(req.body.date) < today_date) {
-                return res.status(400).json({ message: 'Appointment time must be in the future - date' });
+                }
+            } else if (scheduledDateTime < currentDateTime) {
+                // If the appointment date is in the past
+                return res.status(400).json({ message: 'Appointment date must be in the future - date' });
             }
 
-            
-            if (req.body.status) { // to not let someone change status from pending to anything at the time of creation, if req contains status, it simply gets rejected
+            // If all checks pass
+            console.log("Appointment is valid and in the future.");
+
+
+            // Appointment time comparison
+            // if (appointmentDate.toDateString() === today.toDateString()) {
+            //     if (scheduledTime <= now) {
+            //         console.log("4");
+            //         return res.status(400).json({ message: 'Appointment time must be in the future - time' });
+            //     }
+            // } else if (appointmentDate < today) {
+            //     return res.status(400).json({ message: 'Appointment time must be in the future - date' });
+            // }
+
+            // If the appointment is for today, check if the time is in the future
+            const appointmentDayInIndia = new Intl.DateTimeFormat('en-US', { 
+                weekday: 'long', 
+                timeZone: 'Asia/Kolkata' 
+            }).format(scheduledDateTime);
+
+
+            if (req.body.status) {
                 return res.status(400).json({ message: "Cannot set status manually at creation" });
-            }            
-            
+            }
+    
             const doctor_assigned = await DoctorModel.findById(doctor);
             if (!doctor_assigned) {
                 return res.status(404).json({ message: 'Doctor not found' });
             }
+    
             const patient_applied = await PatientModel.findById(patient);
             if (!patient_applied) {
                 return res.status(404).json({ message: 'Patient not found' });
             }
-
-            // appointment should be only between doctor.availability.startTime and scheduled time + duration < endTime
-            // const doctor_availability = doctor_assigned.availability.find((availability) => availability.day === moment(date).format('dddd'));
-            // if (!doctor_availability) {
-            //     return res.status(400).json({ message: 'Doctor is not available on this day' });
-            // }
-
-            const appointmentDay = moment(date).format('dddd');
-            console.log(appointmentDay);
-
-            // Check if the day matches the doctor's availability
-            const availability_day = doctor_assigned.availability.find((slot) => slot.day === appointmentDay);
+    
+            
+            const availability_day = doctor_assigned.availability.find((slot) => slot.day === appointmentDayInIndia);
+            console.log(appointmentDayInIndia);
             if (!availability_day) {
-                return res.status(400).json({message: "The doctor is not available on this day." });
+                return res.status(400).json({ message: "The doctor is not available on this day." });
             }
-
-            const appointmentStart = moment(time, 'HH:mm'); // appointment start time
-            const appointmentEnd = appointmentStart.clone().add(duration, 'minutes'); // Adding duration to iy 
-            const availabilityStart = moment(availability_day.startTime, 'HH:mm'); // doctpr start time on basis of that available day
-            const availabilityEnd = moment(availability_day.endTime, 'HH:mm'); //end time of that day
-            const graceEnd = availabilityEnd.add(10, 'minutes');
+    
+            const availabilityStart = new Date(`${date}T${availability_day.startTime}`);
+            const availabilityEnd = new Date(`${date}T${availability_day.endTime}`);
+            availabilityEnd.setMinutes(availabilityEnd.getMinutes() + 10); // Adding 10 minutes grace period
+    
+            const appointmentEnd = new Date(scheduledTime);
+            appointmentEnd.setMinutes(appointmentEnd.getMinutes() + duration); // Adding duration
+    
+            // Determine the critical end time (10 minutes before availabilityEnd)
+            const criticalEnd = new Date(availabilityEnd);
+            criticalEnd.setMinutes(criticalEnd.getMinutes() - 10); // Subtracting 10 minutes
 
             // Check if appointmentStart and appointmentEnd are within the availability window
-            const isWithinAvailability = appointmentStart.isSameOrAfter(availabilityStart) &&
-                                         appointmentEnd.isSameOrBefore(graceEnd);
+            const isWithinAvailability = scheduledTime >= availabilityStart &&
+                                        appointmentEnd <= availabilityEnd &&
+                                        scheduledTime < criticalEnd;
 
             if (!isWithinAvailability) {
                 console.log('Appointment time does not fit within the doctor\'s available hours.');
                 return res.status(400).json({ message: 'Appointment time does not fit within the doctor\'s available hours.' });
-            } 
-
+            }
+    
+            // Check for existing patient appointments
+            const existingPatientAppointment = await AppointmentModel.findOne({
+                patient,
+                date,
+                status: { $ne: 'cancelled' },
+                $or: [
+                    {
+                        // Existing appointment ends after the new appointment starts
+                        $and: [
+                            { time: { $lte: appointmentEnd.toTimeString().split(' ')[0] } }, // Format to HH:mm
+                            { time: { $gte: scheduledTime.toTimeString().split(' ')[0] } }
+                        ]
+                    },
+                    {
+                        // New appointment starts before the existing appointment ends
+                        $and: [
+                            { time: { $gte: scheduledTime.toTimeString().split(' ')[0] } },
+                            { time: { $lte: appointmentEnd.toTimeString().split(' ')[0] } }
+                        ]
+                    },
+                    {
+                        // Check using the new endTime field
+                        $and: [
+                            { endTime: { $gte: scheduledTime.toTimeString().split(' ')[0] } }, // Existing appointment's end time should be after new appointment starts
+                            { endTime: { $lte: appointmentEnd.toTimeString().split(' ')[0] } } // Existing appointment's end time should be before new appointment ends
+                        ]
+                    }
+                ]
+            });
+    
+            if (existingPatientAppointment) {
+                return res.status(400).json({ message: 'You already have an appointment booked during this time frame.' });
+            }
+    
+            // Check for conflicting appointments with the doctor
+            const existingDoctorAppointment = await AppointmentModel.findOne({
+                doctor,
+                date,
+                status: { $in: ['confirmed', 'ongoing'] },
+                $or: [
+                    {
+                        $and: [
+                            { endTime: { $gte: scheduledTime.toTimeString().split(' ')[0] } }, // Existing appointment's end time should be after new appointment starts
+                            { endTime: { $lte: appointmentEnd.toTimeString().split(' ')[0] } } // Existing appointment's end time should be before new appointment ends
+                        ]
+                    },
+                    {
+                        $and: [
+                            { time: { $gte: scheduledTime.toTimeString().split(' ')[0] } },
+                            { time: { $lte: appointmentEnd.toTimeString().split(' ')[0] } }
+                        ]
+                    }
+                ]
+            });
+    
+            if (existingDoctorAppointment) {
+                return res.status(400).json({ message: 'The doctor already has an appointment booked during this time frame.' });
+            }
+    
+            // Create the appointment including endTime
             const appointment = new AppointmentModel({
-                doctor:doctor,
-                patient:patient,
+                doctor,
+                patient,
                 date,
                 time,
                 duration,
-                mode_of_payment
+                endTime: appointmentEnd.toTimeString().split(' ')[0], // Include endTime
+                mode_of_payment,
             });
-
-            const existingAppointment = await AppointmentModel.findOne({ doctor,patient, date, time });
-            if (existingAppointment) {
-                return res.status(400).json({ message: 'You have already booked an Appointment for the scheduled time' });
-            }
-
+    
             const savedAppointment = await appointment.save();
-            if(savedAppointment)
-            return res.status(201).json({ message: 'Appointment created successfully', appointment });
-            
-            else{
+            if (savedAppointment) {
+                return res.status(201).json({ message: 'Appointment created successfully', appointment });
+            } else {
                 return res.status(500).json({ message: 'Error creating appointment here' });
             }
-
-    }
-        catch(err) {
+    
+        } catch (err) {
+            console.error('Error creating appointment:', err); // Log the error for debugging
             return res.status(500).json({ message: 'Error creating appointment', error: err });
         }
     }
-        
+    
     //get all appointments
 
     static async getAllAppointments(req,res){
@@ -472,6 +561,67 @@ class AppointmentController {
                   res.status(500).json({ message: 'Error on making appointment as complete', error: err.message });
               }
             }
+
+
+            // getting completed appointmet of each doctor
+        static async getCompletedAppointmentsDoc(req, res) {
+            try {
+                const doctorId = req.params.doctorId;
+                
+                const isdoctor = await DoctorModel.findById(doctorId);
+                if (!isdoctor) {
+                    return res.status(404).json({ message: 'Doctor not found.' });
+                }
+
+                const completedAppointments = await AppointmentModel.find({
+                    doctor: doctorId,
+                    status: 'completed',
+                })
+                    .populate('patient', 'username email phone')
+                    .populate('doctor', 'name specialization fees');
+        
+                if (!completedAppointments.length) {
+                    return res.status(404).json({ message: 'No completed appointments found for this doctor. He is not A CHILL GUY NOW!' });
+                }
+        
+                res.status(200).json({ appointments: completedAppointments });
+            } catch (err) {
+                console.error('Error fetching completed appointments:', err.message);
+                res.status(500).json({ message: 'Error fetching completed appointments', error: err.message });
+            }
+        }
+
+
+        // get all missed appointments of each doctor
+        
+        static async getMissedAppointmentsDoc(req, res) {
+            try {
+                const doctorId = req.params.doctorId;
+                
+                const isdoctor = await DoctorModel.findById(doctorId);
+                if (!isdoctor) {
+                    return res.status(404).json({ message: 'Doctor not found.' });
+                }
+
+                const missedAppointments = await AppointmentModel.find({
+                    doctor: doctorId,
+                    status: 'missed',
+                })
+                    .populate('patient', 'username email phone')
+                    .populate('doctor', 'name specialization fees');
+        
+                if (!missedAppointments.length) {
+                    return res.status(404).json({ message: 'No missed appointments found for this doctor. He is just A CHILL GUY NOW!' });
+                }
+        
+                res.status(200).json({ appointments: missedAppointments });
+            } catch (err) {
+                console.error('Error fetching missed appointments:', err.message);
+                res.status(500).json({ message: 'Error fetching missed appointments', error: err.message });
+            }
+        }
+
+
 }
 
 

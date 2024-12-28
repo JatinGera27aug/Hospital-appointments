@@ -41,6 +41,10 @@ router.patch('/ongoing/:doctorId/:appointmentId', AppointmentController.OngoingA
 // ongoing to completed
 router.patch('/complete/:doctorId/:appointmentId', AppointmentController.completeAppointmentByDoctor);
 
+// missed appointments to doc
+router.get('/missed/doctor/:doctorId', AppointmentController.getMissedAppointmentsDoc);
+
+
 
 
 module.exports = router;

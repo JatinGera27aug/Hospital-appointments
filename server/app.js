@@ -12,6 +12,17 @@ app.use(helmet());
 const connectDB = require('./config/dbMongo.js');  // provide db url in .env file
 connectDB();
 
+const { checkAndUpdateMissedAppointments } = require('./utils/checkAppointments');
+const cron = require('node-cron');
+
+cron.schedule('*/5 * * * *', async () => { // Runs every 5 minutes
+    try {
+        await checkAndUpdateMissedAppointments();
+    } catch (error) {
+        console.error('Error running cron job:', error);
+    }
+});
+
 // global error handler
 const errorHandler = (err, req, res, next) => {
     console.error(err.stack);
