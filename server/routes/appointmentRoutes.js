@@ -44,6 +44,12 @@ router.patch('/complete/:doctorId/:appointmentId', AppointmentController.complet
 // missed appointments to doc
 router.get('/missed/doctor/:doctorId', AppointmentController.getMissedAppointmentsDoc);
 
+// missed appointments to pat
+router.get('/missed/patient/:patientId', AppointmentController.getMissedAppointmentsPat);
+
+// find slots
+router.get('/find-slots/:appointmentId', AppointmentController.FindSlotsforRescheduling);
+
 
 
 

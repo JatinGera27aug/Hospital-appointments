@@ -621,6 +621,265 @@ class AppointmentController {
             }
         }
 
+        // get all missed appointments of each patient
+        
+        static async getMissedAppointmentsPat(req, res) {
+            try {
+                const patientId = req.params.patientId;
+                
+                const ispatient = await PatientModel.findById(patientId);
+                if (!ispatient) {
+                    return res.status(404).json({ message: 'Patient not found.' });
+                }
+
+                const missedAppointments = await AppointmentModel.find({
+                    patient: patientId,
+                    status: 'missed',
+                })
+                    .populate('patient', 'username email phone')
+                    .populate('doctor', 'name specialization fees');
+        
+                if (!missedAppointments.length) {
+                    return res.status(404).json({ message: 'No missed appointments found for this patient. He is just A CHILL GUY ' });
+                }
+        
+                res.status(200).json({ appointments: missedAppointments });
+            } catch (err) {
+                console.error('Error fetching missed appointments:', err.message);
+                res.status(500).json({ message: 'Error fetching missed appointments for patient', error: err.message });
+            }
+        }
+
+        // find slots
+        static async FindSlotsforRescheduling(req, res) {
+            try {
+                // const doctorId = req.params.doctorId;
+                const appointmentId = req.params.appointmentId;
+
+                const appointment = await AppointmentModel.findById(appointmentId);
+                if (!appointment) {
+                    return res.status(404).json({ message: 'No such appointment was made earlier' });
+                }
+                console.log(appointment);
+
+                if (appointment.status !== 'missed') {
+                    return res.status(400).json({ message: 'You can only reschedule missed appointments' });
+                }
+                // doctor ko check krna jaruri nhi , kyuki missed state se aya hain to obv pehle sb confirm wagera ho rkha hpga
+                const doctor_info = appointment.doctor;
+                const appointment_duration = appointment.duration;
+                const appointment_date = appointment.date;
+
+                const doctor_whole_info = await DoctorModel.findById(doctor_info);
+                // console.log(doctor_whole_info);
+                const doctor_availability = doctor_whole_info.availability;
+                console.log(doctor_availability);
+                const doctor_confirm_app = await AppointmentModel.find({ doctor: doctor_info, status: 'confirmed', date: appointment_date });
+                // console.log(doctor_confirm_app);
+                console.log(doctor_confirm_app.length);
+
+                // doctor_slice = doctor_confirm_app.slice(2);
+                if (doctor_confirm_app.length == 0){
+                    // update appointment time to doctor start time
+                    const doctor_start_time = doctor_availability.startTime; // chaiye par sirf usi din ka , wo wali condition lgegi
+                    
+                    appointment.time = doctor_start_time;
+                    await appointment.save();
+                    return res.status(200).json({ message: 'Appointment time updated to doctor start time' });
+                }
+                else if (doctor_confirm_app.length > 0) {
+                    // Sort appointments by end time (time + duration) in ascending order
+                    
+                        const calculateEndTime = (time, duration) => {
+                            // Ensure time is in the correct format
+                            const timeParts = time.split(':');
+                            let hours = parseInt(timeParts[0], 10);
+                            let minutes = parseInt(timeParts[1], 10);
+
+                            // Add the duration to minutes
+                            minutes += duration;
+
+                            // Handle overflow: convert excess minutes to hours
+                            hours += Math.floor(minutes / 60);
+                            minutes = minutes % 60;
+
+                            // Format hours and minutes to always have two digits
+                            const formattedHours = hours.toString().padStart(2, '0');
+                            const formattedMinutes = minutes.toString().padStart(2, '0');
+                            return `${formattedHours}:${formattedMinutes}`;
+                    };
+
+                    // Sort appointments by their calculated end time
+                    // const sortedAppointments = doctor_confirm_app.sort((a, b) => {
+                    //     // Calculate end times for both appointments
+                    //     const endA = calculateEndTime(a.time, a.duration);
+                    //     const endB = calculateEndTime(b.time, b.duration);
+
+                    //     // Debug logs to verify computed end times
+                    //     console.log(`Appointment A: ${a._id}, End Time: ${endA}`);
+                    //     console.log(`Appointment B: ${b._id}, End Time: ${endB}`);
+
+                    //     // Compare end times for sorting
+                    //     return endA.localeCompare(endB);
+                    // });
+                    // Update endTime field if it is null and sort appointments
+                    const sortedAppointments = doctor_confirm_app.map((appointment) => {
+                        if (!appointment.endTime) {
+                            appointment.endTime = calculateEndTime(appointment.time, appointment.duration);
+                        }
+                        return appointment;
+                    }).sort((a, b) => a.endTime.localeCompare(b.endTime)); // Sort by updated endTime
+
+                    console.log('Sorted Appointments:', sortedAppointments);
+                    
+                    // Get the last appointment (since it's sorted in ascending order)
+                    const lastAppointment = sortedAppointments[sortedAppointments.length - 1];
+                    console.log('Last Appointment:', lastAppointment.endTime);
+
+                    // Calculate the next available slot (last appointment's end time)
+                    // Calculate next available slot
+                    
+                    const nextAvailableTime = calculateEndTime(lastAppointment.endTime, 5); // Add a 5-minute buffer
+                    console.log('Next Available Time:', nextAvailableTime);
+
+
+                    // doctor's endTimev or not, whole function
+
+                    // Function to get the day of the week in India
+                    const getDayInIndia = (date) => {
+                        return new Intl.DateTimeFormat('en-US', { 
+                            weekday: 'long', 
+                            timeZone: 'Asia/Kolkata' 
+                        }).format(date);
+                    };
+
+                    // const dayInIndia = getDayInIndia(appointment_date); // day acc to date
+                    // console.log('Day in India:', dayInIndia);
+
+                    const getDoctorEndTime = (appointment_date, doctor_availability) => {
+                        // Convert the appointment_date string to a Date object
+                        const scheduledDateTime = new Date(appointment_date);
+                    
+                        // Get the day of the week in India
+                        const appointmentDayInIndia = getDayInIndia(scheduledDateTime);
+                        console.log('Day in India:', appointmentDayInIndia);
+                    
+                        // Find the availability entry for the appointment day
+                        const doctorAvailabilityForDay = doctor_availability.find(
+                            (availability) => availability.day === appointmentDayInIndia
+                        );
+                    
+                        if (!doctorAvailabilityForDay) {
+                            console.log(`Doctor is not available on ${appointmentDayInIndia}`);
+                            return null;
+                        }
+
+                         // Format the date portion of appointment_date to YYYY-MM-DD
+                        const formattedDate = scheduledDateTime.toISOString().split('T')[0];
+
+                        // Combine the date with the doctor's endTime
+                        const doctorEndTime = new Date(`${formattedDate}T${doctorAvailabilityForDay.endTime}`);
+
+
+                        if (isNaN(doctorEndTime.getTime())) {
+                            console.error('Invalid doctor end time:', doctorAvailabilityForDay.endTime);
+                            return null;
+                        }
+
+                        console.log('Doctor End Time:', doctorEndTime.toISOString());
+                        return doctorEndTime;
+                    };
+
+                    const doctor_end_time = getDoctorEndTime(appointment_date, doctor_availability); // calling the main logic func
+
+                    const doctor_end_time_in_local = doctor_end_time.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+                    if (doctor_end_time) {
+                        console.log('Doctor End Time in Local Format:', doctor_end_time_in_local);
+                    }
+
+
+
+                    const formatDoctorEndTime = (doctorEndTime) => {
+                        const localTime = new Date(doctorEndTime).toLocaleString('en-IN', {
+                            timeZone: 'Asia/Kolkata',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false // Use 24-hour format
+                        });
+                    
+                        // Extract hours and minutes
+                        const [hours, minutes] = localTime.split(':');
+                    
+                        // Return formatted time as "HH:mm"
+                        return `${hours}:${minutes}`;
+                    };
+                    console.log('formatted doctor end time in hours:mm', formatDoctorEndTime(doctor_end_time));
+
+                    const formattedDoctorEndTime = formatDoctorEndTime(doctor_end_time);
+
+                    // comapring formatted doctor end time and available slot
+                    const compareTimes = (nextAvailableTime, doctorEndTime) => {
+                        // Extract the time parts for both
+                        const nextAvailableParts = nextAvailableTime.split(':');
+                        const doctorEndParts = doctorEndTime.split(':');
+                    
+                        // Convert time to minutes for easier comparison
+                        const nextAvailableMinutes = parseInt(nextAvailableParts[0], 10) * 60 + parseInt(nextAvailableParts[1], 10);
+                        const doctorEndMinutes = parseInt(doctorEndParts[0], 10) * 60 + parseInt(doctorEndParts[1], 10);
+                        console.log('next available minutes', nextAvailableMinutes);
+                        console.log('doctor end minutes', doctorEndMinutes);
+                    
+                        // Compare the times
+                        return nextAvailableMinutes < doctorEndMinutes;
+                    };
+
+                    // calling with conditions
+
+                    if (compareTimes(nextAvailableTime, formattedDoctorEndTime)) {
+                        console.log('Next Available Slot:', nextAvailableTime);
+                        console.log('Doctor is free from:', nextAvailableTime, 'to', formattedDoctorEndTime);
+                        return res.status(200).json({ 
+                                    message: 'Doctor is free from next available slot to doctor end time', 
+                                    nextAvailableTime,
+                                    formattedDoctorEndTime
+                                });
+                    } 
+                     // shift to next days
+                    else {
+
+                        const scheduledDateTime = new Date(appointment_date);
+                        const appointmentDayInIndia = getDayInIndia(scheduledDateTime);
+
+                        const currentDayIndex = doctor_availability.findIndex(day => day.day === appointmentDayInIndia);
+                        for (let i = 1; i < doctor_availability.length; i++) {
+                            const nextAvailableDayIndex = (currentDayIndex + i) % doctor_availability.length; 
+                            const doctorAvailabilityForNextDay = doctor_availability[nextAvailableDayIndex];
+                    
+                            if (doctorAvailabilityForNextDay && doctorAvailabilityForNextDay.startTime && doctorAvailabilityForNextDay.endTime) {
+                                // Use the next available day's information to calculate the next slot
+                                console.log(`Checking availability for day: ${doctorAvailabilityForNextDay.day}`);
+                    
+                                const lastConfirmedSlotNextDay = findLastConfirmedSlotForDay(
+                                    doctorAvailabilityForNextDay,
+                                    scheduledDateTime
+                                );}}
+
+                        console.log('No available slots within the doctor\'s working hours.');
+                        return res.status(400).json({ 
+                            message: 'No available slots left for rescheduling on this date' 
+                        });
+                        
+                    }      
+                
+                    
+                    }
+            }
+            catch(err){
+                console.error('Error fetching slots:', err.message);
+                res.status(500).json({ message: 'Error fetching slots', error: err.message });
+            }
+        }
+
 
 }
 

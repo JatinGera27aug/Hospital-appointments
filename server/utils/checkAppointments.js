@@ -1,6 +1,8 @@
 const moment = require('moment');
 const cron = require('node-cron');
-const AppointmentModel = require('../models/appointmentModel'); // Adjust path based on your structure
+const PatientModel = require('../models/patientModel');
+const AppointmentModel = require('../models/appointmentModel'); 
+
 
 const checkAndUpdateMissedAppointments = async () => {
     const now = moment();
@@ -24,6 +26,16 @@ const checkAndUpdateMissedAppointments = async () => {
             appointment.status = 'missed';
             await appointment.save();
             console.log(`Appointment ID: ${appointment._id} marked as missed.`);
+
+            const patient = appointment.patient;
+            const doctor = appointment.doctor;
+            // Send notifications to patient and doctor
+            // Implement notification logic here
+            patient_info = await PatientModel.findById(patient);
+            doctor_info = await DoctorModel.findById(doctor);
+
+            patient_email = patient_info.email;
+            doctor_email = doctor_info.contact.email;
         }
     }
 };

@@ -15,7 +15,7 @@ connectDB();
 const { checkAndUpdateMissedAppointments } = require('./utils/checkAppointments');
 const cron = require('node-cron');
 
-cron.schedule('*/5 * * * *', async () => { // Runs every 5 minutes
+cron.schedule('*/50 * * * *', async () => { // Runs every 5 minutes
     try {
         await checkAndUpdateMissedAppointments();
     } catch (error) {
