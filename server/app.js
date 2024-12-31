@@ -15,7 +15,7 @@ connectDB();
 const { checkAndUpdateMissedAppointments } = require('./utils/checkAppointments');
 const cron = require('node-cron');
 
-cron.schedule('*/50 * * * *', async () => { // Runs every 5 minutes
+cron.schedule('*/5 * * * *', async () => { // Runs every 5 minutes
     try {
         await checkAndUpdateMissedAppointments();
     } catch (error) {
@@ -38,9 +38,14 @@ app.use(errorHandler);
 const hospitalRoutes = require('./routes/doctorRoutes.js')
 const patientRoutes = require('./routes/patientRoutes.js')
 const appointmentRoutes = require('./routes/appointmentRoutes.js')
+const authRoutes = require('./routes/auth');
+
 
 const PORT = 8000 || process.env.PORT;
 
+
+// Use Routes
+app.use('/api/auth', authRoutes); // for login and register
 app.get('/', (req, res) => res.send('HELLO WORLD'));
 
 app.use('/api/doctor',hospitalRoutes)

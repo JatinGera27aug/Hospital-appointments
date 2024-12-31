@@ -10,10 +10,19 @@ const transporter = nodemailer.createTransport({
 });
 // console.log(process.env.EMAIL, process.env.EMAIL_PASSWORD)
 
-const sendEmail = (to, subject, text) => {
+
+// const sendEmail = (to, subject, text) => {   // original to use
+//     const mailOptions = {
+//       from: process.env.EMAIL,  
+//       to: 'hijat789@gmail.com', 
+//       subject: subject, 
+//       text: text, 
+//     };
+  
+const sendEmail = ( subject, text) => { // test use
   const mailOptions = {
     from: process.env.EMAIL,  
-    to: to, 
+    to: 'hijat789@gmail.com', 
     subject: subject, 
     text: text, 
   };
@@ -28,5 +37,6 @@ const sendEmail = (to, subject, text) => {
     });
   });
 };
-sendEmail('hijat789@gmail.com', 'demo Subject1', 'Namaste from sender-firse');
+// sendEmail('demo Subject2', 'Namaste from sender-again');
 module.exports = sendEmail;
+// export default sendEmail;

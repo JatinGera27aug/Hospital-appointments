@@ -42,6 +42,10 @@ const AppointmentSchema = new mongoose.Schema({
     ref: "Appointment",
     default: null,
   },
+  reason:{
+    type: String,
+    default: null,
+  }
 
 }, { timestamps: true });
 

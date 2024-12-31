@@ -15,9 +15,18 @@ class DoctorController {
     static async addNewDoctor(req, res) {
 
         try{
-            const { name, specialization, yearsOfExperience, qualifications} = req.body;
+            const {name,
+            specialization,
+            yearsOfExperience,
+            qualifications,
+            availability,
+            contact,
+            clinicAddress,
+            ratings,
+            fees,
+          } = req.body;
                 
-            if (!name || !specialization || yearsOfExperience == null || !qualifications) {
+            if (!name || !specialization || yearsOfExperience == null || !qualifications || !availability || !contact || !fees) {
                 return res.status(400).json({ message: "All fields are required." });
             }
             if (typeof name !== 'string' || typeof specialization !== 'string') {

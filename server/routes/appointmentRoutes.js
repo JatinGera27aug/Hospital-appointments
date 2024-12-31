@@ -59,6 +59,9 @@ router.get('/rescheduled/patient/:patientId', AppointmentController.getReschedul
 // get rescheduled of patient
 router.get('/rescheduled/doctor/:doctorId', AppointmentController.getRescheduledAppointmentsDoc);
 
+// update status of appointment by doctor
+router.patch('/doctor/status/:appointmentId', AppointmentController.updateAppointmentStatus);
+
 
 
 module.exports = router;
