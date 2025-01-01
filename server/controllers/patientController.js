@@ -15,8 +15,9 @@ class PatientController {
 
     // get single patient
     static async getPatientbyId (req, res) {
+        const id = req.params.id;
         try {
-            const patient = await PatientModel.findById(req.params.id);
+            const patient = await PatientModel.findById(id);
             return res.status(200).json(patient);
         } catch (err) {
             return res.status(500).json(err);
