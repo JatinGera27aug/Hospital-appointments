@@ -879,7 +879,7 @@ if (doctor_confirm_app.length === 0) {
             const appointment = await AppointmentModel.findById(appointmentId);
 
             if (!appointment) {
-                return { message: 'Appointment not found.', status: 'error' };
+                return res.status(404).json({ message: "Appointment not found." });
             }
             console.log(appointment);
             const { patientId, doctorId, status, duration } = appointment;
@@ -909,7 +909,7 @@ if (doctor_confirm_app.length === 0) {
             });
 
             if (patientConflict) {
-                return { message: 'Conflict with another appointment for the patient.', status: 'conflict' };
+                return res.status(400).json({message: 'Conflict with another appointment for the patient.' });
             }
 
             // Check for conflicting appointments for the doctor
@@ -924,7 +924,7 @@ if (doctor_confirm_app.length === 0) {
             });
 
             if (doctorConflict) {
-                return { message: 'Conflict with another appointment for the doctor.', status: 'conflict' };
+                return res.status(400).json({ message: 'Conflict with another appointment for the doctor.'});
             }
 
             // Update the appointment with the new slot details
@@ -937,10 +937,10 @@ if (doctor_confirm_app.length === 0) {
 
             // sms logic
 
-            return res.status(200).json({ message: 'Appointment rescheduled successfully.', status: 'success' });
+            return res.status(200).json({ message: 'Appointment rescheduled successfully.'});
         } catch (error) {
-            console.error('Error rescheduling appointment:', error);
-            return res.status(500).json({ message: 'Error rescheduling appointment.', status: 'error' });
+            // console.error('Error rescheduling appointment:', error);
+            return res.status(500).json({ message: 'Error rescheduling appointment.'});
 
         }
     };
@@ -1015,12 +1015,19 @@ if (doctor_confirm_app.length === 0) {
             if (!appointment) {
                 return res.status(404).json({ message: 'Appointment not found.' });
             }
-            if (appointment.status == 'pending' || appointment.status == 'confirmed') {
+            if (appointment.status == 'pending' || appointment.status == 'confirmed' || appointment.status == 'rescheduled') {
                 appointment.status = status;
                 await appointment.save();
 
                 res.status(200).json({ message: 'Appointment status updated successfully.' });
             }
+            // else if(appointment.status == 'rescheduled'){
+            //     appointment.status = status;
+            //     await appointment.save();
+
+            //     res.status(200).json({ message: 'Appointment status updated successfully.' });
+
+            // }
 
             else {
                 res.status(400).json({ message: 'Appointment status cannot be updated.' });
@@ -1028,6 +1035,24 @@ if (doctor_confirm_app.length === 0) {
         }
         catch (err) {
             res.status(500).json({ message: 'Error updating appointment status.', error: err.message });
+        }
+    }
+
+    // get appointment details from id
+    static async getAppointmentDetails(req, res) {
+        try {
+            const appointmentId = req.params.appointmentId;
+
+            const appointment = await AppointmentModel.findById(appointmentId)
+                .populate('patient', 'username email phone')
+                .populate('doctor', 'name specialization fees');
+
+            if (!appointment) {
+                return res.status(404).json({ message: 'Appointment not found.' });
+            }
+            res.status(200).json(appointment);
+        } catch (err) {
+            res.status(500).json({ message: 'Error fetching appointment details.', error: err.message });
         }
     }
 
