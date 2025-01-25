@@ -9,7 +9,7 @@ const moment = require('moment');
 class AppointmentController {
 
     static async MakeAppointment(req, res) {
-        const { doctorId: doctor, date, time, duration, mode_of_payment } = req.body;
+        const { doctorId: doctor, date, time, duration, mode_of_payment, reason } = req.body;
         console.log(req.body);
         const patient = '676ba5c51d5071ac799feff2';
         try {
@@ -178,6 +178,7 @@ class AppointmentController {
                 duration,
                 endTime: appointmentEnd.toTimeString().split(' ')[0], // Include endTime
                 mode_of_payment,
+                reason,
             });
 
             const savedAppointment = await appointment.save();
@@ -1060,32 +1061,3 @@ if (doctor_confirm_app.length === 0) {
 
 
 module.exports = AppointmentController;
-
-// const patient = await Patient.findById(patientId).populate('appointments.doctor');
-// console.log(patient.appointments); // Array of appointments
-
-// // adding
-// const Patient = require('./path/to/patientModel');
-
-// async function addAppointment(patientId, appointmentData) {
-//   const patient = await Patient.findById(patientId);
-//   if (!patient) throw new Error('Patient not found');
-
-//   patient.appointments.push(appointmentData);
-
-//   await patient.save();
-//   console.log('Appointment added:', patient);
-// }
-
-
-// removing
-// const patient = await Patient.findById(patientId);
-// if (!patient) throw new Error('Patient not found');
-
-// // Filter out the appointment you want to remove
-// patient.appointments = patient.appointments.filter(
-//   (appointment) => appointment._id.toString() !== appointmentId
-// );
-
-// await patient.save();
-// console.log('Appointment removed');

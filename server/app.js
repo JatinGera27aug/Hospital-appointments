@@ -12,6 +12,8 @@ app.use(helmet());
 const connectDB = require('./config/dbMongo.js');  // provide db url in .env file
 connectDB();
 
+const Limiter = require('./middleware/rateLimiter');
+
 const { checkAndUpdateMissedAppointments } = require('./utils/checkAppointments');
 const cron = require('node-cron');
 
@@ -38,7 +40,8 @@ app.use(errorHandler);
 const hospitalRoutes = require('./routes/doctorRoutes.js')
 const patientRoutes = require('./routes/patientRoutes.js')
 const appointmentRoutes = require('./routes/appointmentRoutes.js')
-const authRoutes = require('./routes/auth');
+// const authRoutes = require('./routes/auth');
+const authRoutes = require('./routes/sampleRoutes.js')
 
 
 const PORT = 8000 || process.env.PORT;
@@ -46,7 +49,7 @@ const PORT = 8000 || process.env.PORT;
 
 // Use Routes
 app.use('/api/auth', authRoutes); // for login and register
-app.get('/', (req, res) => res.send('HELLO WORLD'));
+app.get('/', Limiter, (req, res) => res.send('HELLO WORLD'));
 
 app.use('/api/doctor',hospitalRoutes)
 app.use('/api/patient',patientRoutes)

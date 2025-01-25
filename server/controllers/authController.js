@@ -1,4 +1,4 @@
-const authModel = require("../models/authModel");
+const authModel = require("../models/userModel");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 
@@ -6,7 +6,7 @@ class AuthController {
   // **User Registration**
   static userRegistration = async (req, res) => {
     console.log("Registration request received:", req.body);
-    const { username, email, password } = req.body;
+    const { username, email, password, role } = req.body;
 
     try {
       // Validate input
@@ -25,12 +25,12 @@ class AuthController {
       const hashedPassword = await bcrypt.hash(password, salt);
 
       // Save new user
-      const newUser = new authModel({ username, email, password: hashedPassword });
+      const newUser = new authModel({ username, email, password: hashedPassword, role });
       const savedUser = await newUser.save();
 
       return res.status(201).json({
         message: "User registered successfully",
-        user: { id: savedUser._id, username: savedUser.username, email: savedUser.email },
+        user: { id: savedUser._id, username: savedUser.username, email: savedUser.email, role:savedUser.role },
       });
     } catch (error) {
       console.error("Error during registration:", error);
@@ -62,12 +62,12 @@ class AuthController {
       }
 
       // Generate token
-      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+      const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
 
       return res
         .status(200)
         .header("auth-token", token)
-        .json({ message: "Login successful", token, username: user.username });
+        .json({ message: "Login successful", token, username: user.username, role:user.role });
     } catch (error) {
       console.error("Error during login:", error);
       return res.status(500).json({ message: "Internal server error" });
